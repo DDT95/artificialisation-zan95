@@ -1,1 +1,83 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Artificialisation & ZAN · DDT 95</title><link rel="stylesheet" href="style.css"></head><body><header><img src="https://ddt95.github.io/atlas-territorial-95/prefet-val-doise-logo.png" alt="Préfet du Val-d’Oise"><div><small>DIRECTION DÉPARTEMENTALE DES TERRITOIRES</small><strong>Artificialisation & ZAN</strong></div><a href="https://ddt95.github.io/atlas-territorial-95/">← Atlas</a></header><main><p class="eyebrow">LECTURE 03 · PRÉFIGURATION</p><h1>Mesurer l’espace.<br><span>Suivre la trajectoire.</span></h1><p class="lead">Une future lecture partagée de la consommation foncière, de l’occupation du sol, des friches et de la trajectoire ZAN.</p><section><h2>Ce que la page donnera à lire</h2><div class="grid"><article><b>01</b><h3>Consommation</h3><p>Évolution annuelle et décennale des espaces naturels, agricoles et forestiers.</p></article><article><b>02</b><h3>Occupation du sol</h3><p>Nature des transformations et localisation des secteurs concernés.</p></article><article><b>03</b><h3>Potentiels</h3><p>Friches, renouvellement urbain et comparaison des communes.</p></article></div></section></main><footer>DDT du Val-d’Oise – Pôle géomatique</footer></body></html>
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Artificialisation des sols et trajectoire ZAN dans le Val-d’Oise — DDT 95">
+  <title>Artificialisation & ZAN · Val-d’Oise · DDT 95</title>
+  <link rel="preconnect" href="https://tile.openstreetmap.org">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="styles.css?v=20260731a">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand-logo-link" href="https://ddt95.github.io/atlas-territorial-95/" aria-label="Retour à l’Atlas territorial"><img class="brand-logo" src="prefet-val-doise.svg" alt="Préfet du Val-d’Oise"></a>
+    <div class="title-block">
+      <span class="eyebrow">ARTIFICIALISATION · FONCIER · VAL-D’OISE</span>
+      <h1>Artificialisation & ZAN</h1>
+      <p>Occupation du sol · consommation d’espace · trajectoire ZAN · friches</p>
+    </div>
+    <button id="mobileLayers" class="mobile-layers" aria-controls="layerSidebar" aria-expanded="false">Données</button>
+    <div class="livebox"><span class="fresh-dot"></span><div><strong>3 couches cartographiques prêtes</strong><small>Cerema · IGN Géoplateforme</small></div></div>
+  </header>
+  <div class="progress"><span></span></div>
+
+  <main class="workspace">
+    <aside id="layerSidebar" class="sidebar" aria-label="Choix des données">
+      <div class="sidebar-intro"><div><span class="eyebrow">LECTURE CARTOGRAPHIQUE</span><h2>Mesurer<br>l’artificialisation</h2><p>Explorez l’occupation du sol, la consommation d’espace communale et les friches recensées sur le territoire.</p></div></div>
+
+      <label class="search-box">
+        <span>Rechercher une commune</span>
+        <div><input id="searchInput" type="search" placeholder="Ex. Pontoise" autocomplete="off"><button id="searchButton" aria-label="Rechercher">→</button></div>
+      </label>
+      <div id="searchResults" class="search-results" hidden></div>
+
+      <div class="quick-actions"><button id="resetPanel">Recentrer</button><button id="openDashboard">Données & évolutions</button></div>
+
+      <div class="theme-heading"><span>COUCHES CARTOGRAPHIQUES</span><button id="clearLayers">Tout effacer</button></div>
+      <div id="layerList" class="layer-list"></div>
+
+      <button id="openSources" class="sources-inline">Sources, millésimes et licences</button>
+      <div class="sidebar-footer">
+        <div class="fresh-dot"></div>
+        <div><strong id="frichesCount">Friches recensées</strong><small>Cartofriches · Cerema</small></div>
+      </div>
+    </aside>
+
+    <section class="map-shell" aria-label="Carte interactive">
+      <div id="map"></div>
+      <div id="mapLegend" class="map-legend"><strong>Lecture de la carte</strong><span>Activez une couche pour afficher sa légende.</span></div>
+      <div class="map-note"><span class="pulse"></span><span id="mapStatus">Chargement des données territoriales…</span></div>
+      <button id="resetView" class="map-reset" title="Recentrer sur le Val-d’Oise" aria-label="Recentrer sur le Val-d’Oise">⌂</button>
+    </section>
+
+    <aside id="detailPanel" class="detail-panel" aria-live="polite">
+      <button id="closeDetail" class="close-btn" aria-label="Fermer le panneau">×</button>
+      <div id="detailContent"></div>
+    </aside>
+  </main>
+
+  <dialog id="dashboardDialog" class="dialog dashboard-dialog">
+    <button class="dialog-close" data-close="dashboardDialog" aria-label="Fermer">×</button>
+    <div class="dialog-header"><span class="eyebrow">TRAJECTOIRE DÉPARTEMENTALE</span><h2>Consommation d’espace & objectif ZAN</h2><p>La loi Climat et résilience fixe un objectif de réduction de moitié de la consommation d’espaces naturels, agricoles et forestiers (ENAF) entre 2021-2031 par rapport à la décennie 2011-2020, avant d’atteindre le zéro artificialisation nette en 2050. Données Cerema, mise à jour annuelle.</p></div>
+    <div id="dashboardKpis" class="dashboard-kpis"></div>
+    <div class="dashboard-grid">
+      <article class="chart-card span-2"><div><span class="chart-kicker">TRAJECTOIRE</span><h3>Consommation annuelle d’ENAF vs objectif ZAN</h3><p>Espaces naturels, agricoles et forestiers consommés chaque année · Val-d’Oise · Cerema</p></div><canvas id="trajectoryChart"></canvas></article>
+      <article class="insight-card"><span>À RETENIR</span><strong id="insightValue">—</strong><p id="insightText">Analyse en cours.</p></article>
+      <article class="chart-card"><div><span class="chart-kicker">DESTINATION</span><h3>Nature de la consommation, dernière année connue</h3><p>Répartition par usage · Cerema</p></div><canvas id="usageChart"></canvas></article>
+      <article class="chart-card"><div><span class="chart-kicker">FRICHES</span><h3>Friches recensées par zonage d’urbanisme</h3><p>Cartofriches · Cerema</p></div><canvas id="frichesChart"></canvas></article>
+      <article class="dashboard-note"><span>COMMENT LIRE</span><h3>Une trajectoire calculée, pas mesurée en continu</h3><p>La consommation d’espace est estimée chaque année à partir des Fichiers fonciers (DGFiP) enrichis par le Cerema. L’objectif -50 % est fixé par rapport à la moyenne annuelle constatée sur 2011-2020.</p><small>Dernière consolidation : millésime le plus récent publié par l’Observatoire national de l’artificialisation.</small></article>
+    </div>
+  </dialog>
+
+  <dialog id="sourcesDialog" class="dialog sources-dialog">
+    <button class="dialog-close" data-close="sourcesDialog" aria-label="Fermer">×</button>
+    <div class="dialog-header"><span class="eyebrow">TRAÇABILITÉ</span><h2>Sources et millésimes</h2><p>Chaque couche renvoie vers la source officielle et conserve ses précautions d’usage.</p></div>
+    <div id="sourceCards" class="source-cards"></div>
+  </dialog>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="app.js?v=20260731a"></script>
+</body>
+</html>
