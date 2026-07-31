@@ -38,11 +38,18 @@ function wmtsLayer(source){
   return L.tileLayer(`https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${source.wmtsLayer}&STYLE=normal&TILEMATRIXSET=PM_6_16&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/png`,{minZoom:6,maxZoom:16,opacity:.82,attribution:"IGN · Géoplateforme"});
 }
 
+async function fetchJson(url,attempts=3){
+  let lastError;
+  for(let i=0;i<attempts;i++){
+    try{const r=await fetch(url);if(!r.ok)throw new Error(`${url} → ${r.status}`);return await r.json()}
+    catch(e){lastError=e;if(i<attempts-1)await new Promise(res=>setTimeout(res,500*(i+1)))}
+  }
+  throw lastError;
+}
 async function loadFriches(){
   if(state.friches)return state.friches;
   const url=`${sources.find(s=>s.id==="friches").api}?coddep=95&page_size=300&fields=all`;
-  const r=await fetch(url);if(!r.ok)throw new Error(`Cartofriches ${r.status}`);
-  const d=await r.json();
+  const d=await fetchJson(url);
   state.friches=d;
   document.getElementById("frichesCount").textContent=`${d.features.length} friches recensées`;
   const countLabel=sources.find(s=>s.id==="friches");countLabel.count=`${d.features.length} sites`;
@@ -99,9 +106,7 @@ function openFriche(feature){
 async function fetchConsoEspace(echelle,code){
   const cacheKey=`${echelle}:${code}`;
   if(state.communeCache[cacheKey])return state.communeCache[cacheKey];
-  const r=await fetch(`${CEREMA_API}/indicateurs/conso_espace/${echelle}/${code}/?ordering=annee`);
-  if(!r.ok)throw new Error(`Cerema ${r.status}`);
-  const d=await r.json();
+  const d=await fetchJson(`${CEREMA_API}/indicateurs/conso_espace/${echelle}/${code}/?ordering=annee`);
   state.communeCache[cacheKey]=d.results||[];
   return state.communeCache[cacheKey];
 }
