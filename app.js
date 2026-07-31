@@ -6,12 +6,14 @@ const zoneLabels = {U:"Zone urbaine (U)",AU:"À urbaniser (AU)",A:"Agricole (A)"
 const zoneColors = {U:"#b8752a",AU:"#c3992a",A:"#18753c",N:"#0078f3"};
 
 const sources = [
-  {id:"couverture",title:"Occupation du sol (OCS GE)",date:"Millésime 2024-2026",group:"Occupation du sol",color:"#8a5a44",kind:"wmts",wmtsLayer:"OCSGE.COUVERTURE.2024-2026",count:"Couche IGN nationale",active:true,producer:"IGN · Géoplateforme"},
+  {id:"conso_communes",title:"Consommation d’espace communale",date:"Cumul 2011-2024",group:"Trajectoire ZAN",color:"#000091",kind:"choropleth",count:"183 communes",active:true,producer:"Cerema · Indicateurs fonciers"},
+  {id:"couverture",title:"Occupation du sol (OCS GE)",date:"Millésime 2024-2026",group:"Occupation du sol",color:"#8a5a44",kind:"wmts",wmtsLayer:"OCSGE.COUVERTURE.2024-2026",count:"Couche IGN nationale",active:false,producer:"IGN · Géoplateforme"},
   {id:"artif",title:"Espaces artificialisés (OCS GE)",date:"Millésime 2024-2026",group:"Occupation du sol",color:"#c65f52",kind:"wmts",wmtsLayer:"OCSGE.ARTIF.2024-2026",count:"Zones construites identifiées",active:false,producer:"IGN · Géoplateforme"},
   {id:"friches",title:"Friches recensées",date:"Cartofriches · actualisation continue",group:"Potentiels fonciers",color:"#b8752a",kind:"friches",api:`${CEREMA_API}/cartofriches/geofriches/`,count:"— sites",active:true,producer:"Cerema · Cartofriches"}
 ];
 
 const themeGuide = {
+  conso_communes:{short:"Chaque commune colorée selon l’ENAF consommé depuis 2011",what:"Cette carte cumule, commune par commune, les espaces naturels, agricoles et forestiers consommés entre 2011 et la dernière année connue.",read:"Plus une commune est foncée, plus elle a consommé d’espace en valeur absolue. Cliquez sur une commune pour voir son détail annuel et son objectif ZAN."},
   couverture:{short:"Nature physionomique du sol : bâti, sol nu, végétation, eau…",what:"L’occupation du sol à grande échelle (OCS GE) de l’IGN décrit ce qui recouvre chaque point du territoire, indépendamment de son usage.",read:"Elle sert de socle national pour mesurer les évolutions du bâti et des espaces naturels, agricoles et forestiers dans le temps."},
   artif:{short:"Zones identifiées comme construites par l’OCS GE",what:"Cette couche isole les espaces considérés comme artificialisés : bâti, voirie, parkings et autres surfaces imperméabilisées.",read:"Elle permet de visualiser directement l’empreinte construite du territoire, millésime par millésime."},
   friches:{short:"Sites recensés dans l’inventaire national Cartofriches",what:"Une friche est un site bâti ou non, autrefois utilisé, aujourd’hui vacant ou sous-occupé, avec un potentiel de renouvellement urbain.",read:"La fiche indique la surface, le zonage d’urbanisme applicable et l’état de connaissance de la pollution des sols lorsqu’il est renseigné."}
@@ -35,7 +37,7 @@ function fmtM2(v){return Number.isFinite(v)?`${Math.round(v).toLocaleString("fr-
 function fmtHa(v){return Number.isFinite(v)?`${(v/10000).toLocaleString("fr-FR",{maximumFractionDigits:1})} ha`:"—"}
 
 function wmtsLayer(source){
-  return L.tileLayer(`https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${source.wmtsLayer}&STYLE=normal&TILEMATRIXSET=PM_6_16&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/png`,{minZoom:6,maxZoom:16,opacity:.82,attribution:"IGN · Géoplateforme"});
+  return L.tileLayer(`https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${source.wmtsLayer}&STYLE=normal&TILEMATRIXSET=PM_6_16&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/png`,{minZoom:6,maxZoom:16,opacity:source.id==="couverture"?.62:.72,attribution:"IGN · Géoplateforme"});
 }
 
 async function fetchJson(url,attempts=3){
@@ -56,16 +58,63 @@ async function loadFriches(){
   return d;
 }
 
-function friceStyle(){return {color:"#8a5a44",weight:1.5,fillColor:"#c65f52",fillOpacity:.42}}
+function friceStyle(f){const c=zoneColors[f.properties.urba_zone_type]||"#8a5a44";return {color:c,weight:1.5,fillColor:c,fillOpacity:.35}}
+function frichePoint(f,latlng){
+  const c=zoneColors[f.properties.urba_zone_type]||"#8a5a44";
+  return L.circleMarker(latlng,{radius:6,weight:2,color:"#fff",fillColor:c,fillOpacity:.95});
+}
+function centroid(geometry){
+  const rings=geometry.type==="Polygon"?[geometry.coordinates[0]]:geometry.coordinates.map(p=>p[0]);
+  let x=0,y=0,n=0;
+  rings.forEach(ring=>ring.forEach(([lon,lat])=>{x+=lon;y+=lat;n++}));
+  return [x/n,y/n];
+}
 
 async function loadLayer(source){
   if(layers[source.id])return layers[source.id];
   if(source.kind==="wmts"){layers[source.id]=wmtsLayer(source);return layers[source.id]}
   if(source.kind==="friches"){
     const data=await loadFriches();
-    layers[source.id]=L.geoJSON(data,{style:friceStyle,onEachFeature:(f,l)=>{l.on("click",()=>openFriche(f));l.bindTooltip(f.properties.site_nom||f.properties.comm_nom||"Friche",{sticky:true})}});
+    const onEach=(f,l)=>{l.on("click",()=>openFriche(f));l.bindTooltip(f.properties.site_nom||f.properties.comm_nom||"Friche",{sticky:true})};
+    // Points dérivés du centroïde de chaque polygone, visibles à toute échelle.
+    const centroidData={type:"FeatureCollection",features:data.features.map(f=>({type:"Feature",properties:f.properties,geometry:{type:"Point",coordinates:centroid(f.geometry)}}))};
+    const dots=L.geoJSON(centroidData,{pointToLayer:frichePoint,onEachFeature:onEach});
+    const polygons=L.geoJSON(data,{style:friceStyle,onEachFeature:onEach});
+    layers[source.id]=L.layerGroup([polygons,dots]);
     return layers[source.id];
   }
+  if(source.kind==="choropleth"){
+    if(!state.communes)throw new Error("Limites communales indisponibles");
+    document.getElementById("mapStatus").textContent="Calcul de la consommation d’espace pour les 183 communes…";
+    const ranking=await rankCommunes();
+    const byCode={};ranking.forEach(r=>byCode[r.code]=r.total);
+    const breaks=choroBreaks(ranking.map(r=>r.total));
+    const data={type:"FeatureCollection",features:state.communes.features.map(f=>({type:"Feature",properties:{...f.properties,total:byCode[f.properties.code]||0},geometry:f.geometry}))};
+    layers[source.id]=L.geoJSON(data,{
+      style:f=>({color:"#fff",weight:.8,fillColor:choroColor(f.properties.total,breaks),fillOpacity:.78}),
+      onEachFeature:(f,l)=>{
+        l.bindTooltip(`<b>${f.properties.nom}</b><br>${fmtHa(f.properties.total)} consommés depuis 2011`,{sticky:true});
+        l.on("click",()=>openCommune(f.properties.nom,f.properties.code));
+        l.on("mouseover",()=>l.setStyle({weight:2.5,color:"#070047"}));
+        l.on("mouseout",()=>l.setStyle({weight:.8,color:"#fff"}));
+      }
+    });
+    state.choroBreaks=breaks;
+    return layers[source.id];
+  }
+}
+
+const CHORO_RAMP=["#dbe4f0","#a9c0e0","#6f95cc","#3a63a8","#0c2c6b"];
+function choroBreaks(values){
+  const sorted=values.filter(v=>v>0).sort((a,b)=>a-b);
+  if(!sorted.length)return [0,0,0,0];
+  const q=p=>sorted[Math.min(sorted.length-1,Math.floor(p*sorted.length))];
+  return [q(.2),q(.4),q(.6),q(.8)];
+}
+function choroColor(v,breaks){
+  if(!v)return "#eef1f6";
+  for(let i=0;i<breaks.length;i++)if(v<=breaks[i])return CHORO_RAMP[i];
+  return CHORO_RAMP[CHORO_RAMP.length-1];
 }
 
 async function setLayer(source,on){
@@ -117,6 +166,36 @@ function zanTarget(rows){
   return avg===null?null:avg*0.5;
 }
 
+async function mapWithConcurrency(items,limit,worker){
+  const results=new Array(items.length);let i=0;
+  async function run(){while(i<items.length){const idx=i++;results[idx]=await worker(items[idx],idx)}}
+  await Promise.all(Array.from({length:Math.min(limit,items.length)},run));
+  return results;
+}
+
+async function rankCommunes(){
+  if(state.communeRanking)return state.communeRanking;
+  const list=(state.communes?.features||[]).map(f=>({nom:f.properties.nom,code:f.properties.code}));
+  const rows=await mapWithConcurrency(list,20,async c=>{
+    try{const r=await fetchConsoEspace("communes",c.code);return {nom:c.nom,code:c.code,total:r.reduce((a,x)=>a+x.naf_arti,0)}}
+    catch(e){return {nom:c.nom,code:c.code,total:0}}
+  });
+  state.communeRanking=rows.filter(r=>r.total>0).sort((a,b)=>b.total-a.total);
+  return state.communeRanking;
+}
+
+const IDF_DEPARTEMENTS={"75":"Paris","77":"Seine-et-Marne","78":"Yvelines","91":"Essonne","92":"Hauts-de-Seine","93":"Seine-Saint-Denis","94":"Val-de-Marne","95":"Val-d’Oise"};
+async function regionalComparison(){
+  if(state.regional)return state.regional;
+  const codes=Object.keys(IDF_DEPARTEMENTS);
+  const rows=await mapWithConcurrency(codes,8,async code=>{
+    try{const r=await fetchConsoEspace("departements",code);const ref=r.filter(x=>x.annee>=2011&&x.annee<=2020);const avg=ref.length?ref.reduce((a,x)=>a+x.naf_arti,0)/ref.length:0;return {code,nom:IDF_DEPARTEMENTS[code],avg}}
+    catch(e){return {code,nom:IDF_DEPARTEMENTS[code],avg:0}}
+  });
+  state.regional=rows.sort((a,b)=>b.avg-a.avg);
+  return state.regional;
+}
+
 async function openCommune(nom,code){
   document.getElementById("detailContent").innerHTML=`<span class="detail-tag">Trajectoire ZAN · Cerema</span><h2>${htmlSafe(nom)}</h2><p class="subtitle">Consommation d’espace communale</p><p class="subtitle">Chargement des données…</p>`;
   document.getElementById("detailPanel").classList.add("open");
@@ -162,8 +241,15 @@ function renderLegend(activeSources){
   const el=document.getElementById("mapLegend");
   state.legendId=list[0]?.id;
   el.innerHTML=list.map(source=>{
-    const rows=source.id==="friches"?[["#c65f52","Friche recensée"]]:source.id==="artif"?[["#c65f52","Espace artificialisé identifié"]]:[["#8a5a44","Voir la légende IGN ↗"]];
-    return `<div class="legend-content"><strong>${source.title}</strong>${rows.map(([c,l])=>`<span><i style="background:${c}"></i>${l}</span>`).join("")}${source.id!=="friches"?`<a href="https://data.geopf.fr/annexes/ressources/legendes/${source.wmtsLayer}-legend.png" target="_blank" rel="noopener" style="display:block;margin-top:8px;font-size:9px;color:#000091;font-weight:700">Voir la légende officielle ↗</a>`:""}</div>`;
+    let rows,link="";
+    if(source.id==="friches")rows=[["#8a5a44","Friche recensée (couleur = zonage)"]];
+    else if(source.id==="conso_communes"){
+      const b=state.choroBreaks||[0,0,0,0];
+      rows=[["#eef1f6","Aucune donnée"],[CHORO_RAMP[0],`< ${fmtHa(b[0])}`],[CHORO_RAMP[1],`${fmtHa(b[0])} – ${fmtHa(b[1])}`],[CHORO_RAMP[2],`${fmtHa(b[1])} – ${fmtHa(b[2])}`],[CHORO_RAMP[3],`${fmtHa(b[2])} – ${fmtHa(b[3])}`],[CHORO_RAMP[4],`> ${fmtHa(b[3])}`]];
+    }
+    else if(source.kind==="wmts"){rows=[["#c65f52",source.id==="artif"?"Espace artificialisé identifié":"Voir la légende IGN"]];link=`<a href="https://data.geopf.fr/annexes/ressources/legendes/${source.wmtsLayer}-legend.png" target="_blank" rel="noopener" style="display:block;margin-top:8px;font-size:9px;color:#000091;font-weight:700">Voir la légende officielle ↗</a>`}
+    else rows=[[source.color,source.title]];
+    return `<div class="legend-content"><strong>${source.title}</strong>${rows.map(([c,l])=>`<span><i style="background:${c}"></i>${l}</span>`).join("")}${link}</div>`;
   }).join("");
 }
 
@@ -182,7 +268,7 @@ async function buildDashboard(){
   const button=document.getElementById("openDashboard"),label=button.textContent;
   button.disabled=true;button.textContent="Préparation…";
   try{
-    const [rows]=await Promise.all([fetchConsoEspace("departements","95"),loadFriches()]);
+    const [rows,,ranking,regional]=await Promise.all([fetchConsoEspace("departements","95"),loadFriches(),rankCommunes(),regionalComparison()]);
     rows.sort((a,b)=>a.annee-b.annee);
     const target=zanTarget(rows);
     const years=rows.map(r=>r.annee);
@@ -216,6 +302,11 @@ async function buildDashboard(){
     const zoneKeys=Object.keys(zoneCounts);
     state.charts.push(new Chart(document.getElementById("frichesChart"),{type:"bar",data:{labels:zoneKeys.map(k=>zoneLabels[k]||k),datasets:[{data:zoneKeys.map(k=>zoneCounts[k]),backgroundColor:zoneKeys.map(k=>zoneColors[k]||"#94a3b8"),borderRadius:5}]},options:{...common,indexAxis:"y"}}));
 
+    const topCommunes=ranking.slice(0,12);
+    state.charts.push(new Chart(document.getElementById("communesChart"),{type:"bar",data:{labels:topCommunes.map(c=>c.nom),datasets:[{data:topCommunes.map(c=>c.total/10000),backgroundColor:"#000091",borderRadius:4}]},options:{...common,indexAxis:"y",scales:{...common.scales,x:{...common.scales.x,title:{display:true,text:"Hectares cumulés",font}}}}}));
+
+    state.charts.push(new Chart(document.getElementById("regionalChart"),{type:"bar",data:{labels:regional.map(d=>d.nom),datasets:[{data:regional.map(d=>d.avg/10000),backgroundColor:regional.map(d=>d.code==="95"?"#000091":"#c7d0e3"),borderRadius:5}]},options:{...common,scales:{...common.scales,y:{...common.scales.y,title:{display:true,text:"ha/an",font}}}}}));
+
     document.getElementById("insightValue").textContent=pctVsTarget!==null?`${pctVsTarget} %`:"—";
     document.getElementById("insightText").textContent=pctVsTarget!==null?`de l’objectif ZAN annuel est consommé en moyenne sur les 3 dernières années (${fmtHa(recentAvg)}/an, objectif max ${fmtHa(target)}/an). En ${last.annee}, ${fmtHa(last.naf_arti)} d’ENAF ont été consommés dans le Val-d’Oise.`:"Analyse en cours.";
 
@@ -232,6 +323,7 @@ async function init(){
   try{
     const r=await fetch("https://geo.api.gouv.fr/departements/95/communes?fields=nom,code,centre,contour&format=geojson&geometry=contour");
     const communes=await r.json();
+    state.communes=communes;
     const holes=[];communes.features.forEach(f=>{const g=f.geometry;if(g.type==="Polygon")holes.push(g.coordinates[0]);else if(g.type==="MultiPolygon")g.coordinates.forEach(p=>holes.push(p[0]))});
     L.geoJSON({type:"Feature",properties:{},geometry:{type:"Polygon",coordinates:[[[-180,-85],[180,-85],[180,85],[-180,85],[-180,-85]],...holes]}},{pane:"maskPane",interactive:false,className:"map-mask",style:{stroke:false,fillColor:"#e7ebf2",fillOpacity:.94,fillRule:"evenodd"}}).addTo(map);
     const territory=L.geoJSON(communes,{pane:"boundaryPane",interactive:false,style:{color:"#565b6c",weight:.7,opacity:.68,fillOpacity:0}}).addTo(map);
@@ -241,7 +333,7 @@ async function init(){
   }catch(e){document.getElementById("resetView").onclick=()=>map.fitBounds(BOUNDS_95)}
   await Promise.allSettled(sources.filter(s=>s.active).map(s=>setLayer(s,true)));
   refreshLegend();
-  document.getElementById("mapStatus").textContent="3 couches cartographiques prêtes · IGN Géoplateforme + Cerema";
+  document.getElementById("mapStatus").textContent="4 couches cartographiques prêtes · IGN Géoplateforme + Cerema";
 }
 
 document.getElementById("searchButton").onclick=search;

@@ -18,7 +18,7 @@
       <p>Occupation du sol · consommation d’espace · trajectoire ZAN · friches</p>
     </div>
     <button id="mobileLayers" class="mobile-layers" aria-controls="layerSidebar" aria-expanded="false">Données</button>
-    <div class="livebox"><span class="fresh-dot"></span><div><strong>3 couches cartographiques prêtes</strong><small>Cerema · IGN Géoplateforme</small></div></div>
+    <div class="livebox"><span class="fresh-dot"></span><div><strong>4 couches cartographiques prêtes</strong><small>Cerema · IGN Géoplateforme</small></div></div>
   </header>
   <div class="progress"><span></span></div>
 
@@ -66,7 +66,9 @@
       <article class="insight-card"><span>À RETENIR</span><strong id="insightValue">—</strong><p id="insightText">Analyse en cours.</p></article>
       <article class="chart-card"><div><span class="chart-kicker">DESTINATION</span><h3>Nature de la consommation, dernière année connue</h3><p>Répartition par usage · Cerema</p></div><canvas id="usageChart"></canvas></article>
       <article class="chart-card"><div><span class="chart-kicker">FRICHES</span><h3>Friches recensées par zonage d’urbanisme</h3><p>Cartofriches · Cerema</p></div><canvas id="frichesChart"></canvas></article>
-      <article class="dashboard-note"><span>COMMENT LIRE</span><h3>Une trajectoire calculée, pas mesurée en continu</h3><p>La consommation d’espace est estimée chaque année à partir des Fichiers fonciers (DGFiP) enrichis par le Cerema. L’objectif -50 % est fixé par rapport à la moyenne annuelle constatée sur 2011-2020.</p><small>Dernière consolidation : millésime le plus récent publié par l’Observatoire national de l’artificialisation.</small></article>
+      <article class="chart-card span-2"><div><span class="chart-kicker">CLASSEMENT</span><h3>Communes les plus consommatrices d’espace</h3><p>Cumul d’ENAF consommés 2011-2024, 12 communes les plus consommatrices · Cerema</p></div><canvas id="communesChart"></canvas></article>
+      <article class="chart-card"><div><span class="chart-kicker">COMPARAISON</span><h3>Rythme annuel par département francilien</h3><p>Moyenne 2011-2020 · Cerema</p></div><canvas id="regionalChart"></canvas></article>
+      <article class="dashboard-note"><span>COMMENT LIRE</span><h3>Une trajectoire calculée, pas mesurée en continu</h3><p>La consommation d’espace est estimée chaque année à partir des Fichiers fonciers (DGFiP) enrichis par le Cerema. L’objectif -50 % est fixé par rapport à la moyenne annuelle constatée sur 2011-2020. Le classement communal cumule 2011-2024 ; il favorise mécaniquement les communes déjà les plus grandes ou les plus dynamiques.</p><small>Dernière consolidation : millésime le plus récent publié par l’Observatoire national de l’artificialisation.</small></article>
     </div>
   </dialog>
 
