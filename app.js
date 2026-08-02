@@ -5,6 +5,51 @@ const usageColors = {conso_hab:"#000091",conso_act:"#e1000f",conso_mix:"#7a5af8"
 const zoneLabels = {U:"Zone urbaine (U)",AU:"À urbaniser (AU)",A:"Agricole (A)",N:"Naturelle (N)"};
 const zoneColors = {U:"#b8752a",AU:"#c3992a",A:"#18753c",N:"#0078f3"};
 
+// Nomenclature officielle OCS GE (IGN) — couleurs RGB du descriptif de contenu v1.1.
+const CS_NOMENCLATURE = {
+  "CS1.1.1.1":{label:"Zones bâties",color:"rgb(255,55,122)",group:"Surfaces anthropisées"},
+  "CS1.1.1.2":{label:"Zones non bâties imperméabilisées",color:"rgb(255,145,145)",group:"Surfaces anthropisées"},
+  "CS1.1.2.1":{label:"Zones à matériaux minéraux",color:"rgb(255,255,153)",group:"Surfaces anthropisées"},
+  "CS1.1.2.2":{label:"Zones à autres matériaux composites",color:"rgb(166,77,0)",group:"Surfaces anthropisées"},
+  "CS1.2.1":{label:"Sols nus",color:"rgb(204,204,204)",group:"Surfaces naturelles"},
+  "CS1.2.2":{label:"Surfaces d’eau",color:"rgb(0,204,242)",group:"Surfaces naturelles"},
+  "CS1.2.3":{label:"Névés et glaciers",color:"rgb(166,230,204)",group:"Surfaces naturelles"},
+  "CS2.1.1.1":{label:"Peuplements de feuillus",color:"rgb(128,255,0)",group:"Végétation ligneuse"},
+  "CS2.1.1.2":{label:"Peuplements de conifères",color:"rgb(0,166,0)",group:"Végétation ligneuse"},
+  "CS2.1.1.3":{label:"Peuplements mixtes",color:"rgb(128,190,0)",group:"Végétation ligneuse"},
+  "CS2.1.2":{label:"Formations arbustives",color:"rgb(166,255,128)",group:"Végétation ligneuse"},
+  "CS2.1.3":{label:"Autres formations ligneuses (vignes…)",color:"rgb(230,128,0)",group:"Végétation ligneuse"},
+  "CS2.2.1":{label:"Formations herbacées (prairies, cultures)",color:"rgb(204,242,77)",group:"Végétation non ligneuse"},
+  "CS2.2.2":{label:"Autres formations non ligneuses",color:"rgb(204,255,204)",group:"Végétation non ligneuse"}
+};
+const US_NOMENCLATURE = {
+  "US1":{label:"Production primaire (agriculture, sylviculture…)",color:"rgb(255,255,168)"},
+  "US2":{label:"Production secondaire (industrie)",color:"rgb(230,0,77)"},
+  "US3":{label:"Production tertiaire (commerces, services)",color:"rgb(230,0,120)"},
+  "US4":{label:"Réseaux de transport et infrastructures",color:"rgb(204,0,0)"},
+  "US5":{label:"Usage résidentiel",color:"rgb(230,77,120)"},
+  "US6":{label:"Autre usage",color:"rgb(200,200,0)"},
+  "US1.1":{label:"Agriculture",color:"rgb(255,255,168)"},
+  "US1.2":{label:"Sylviculture",color:"rgb(0,128,0)"},
+  "US1.3":{label:"Activités d’extraction",color:"rgb(166,0,204)"},
+  "US1.4":{label:"Pêche et aquaculture",color:"rgb(0,0,153)"},
+  "US1.5":{label:"Autres productions primaires",color:"rgb(153,102,51)"},
+  "US235":{label:"Production secondaire, tertiaire ou résidentiel",color:"rgb(230,0,77)"},
+  "US4.1.1":{label:"Réseaux routiers",color:"rgb(204,0,0)"},
+  "US4.1.2":{label:"Réseaux ferrés",color:"rgb(90,90,90)"},
+  "US4.1.3":{label:"Réseaux aériens",color:"rgb(230,204,230)"},
+  "US4.1.4":{label:"Réseaux fluvial et maritime",color:"rgb(0,102,255)"},
+  "US4.1.5":{label:"Autres réseaux de transport",color:"rgb(102,0,51)"},
+  "US4.2":{label:"Services logistiques et stockage",color:"rgb(255,0,0)"},
+  "US4.3":{label:"Réseaux d’utilité publique",color:"rgb(255,75,0)"},
+  "US6.1":{label:"Zone en transition",color:"rgb(255,77,255)"},
+  "US6.2":{label:"Zone abandonnée",color:"rgb(64,64,64)"},
+  "US6.3":{label:"Sans usage",color:"rgb(240,240,40)"},
+  "US6.4":{label:"Usage inconnu",color:"rgb(255,204,0)"}
+};
+function csInfo(code){return CS_NOMENCLATURE[code]||{label:code||"Non renseigné",color:"#94a3b8"}}
+function usInfo(code){return US_NOMENCLATURE[code]||{label:code||"Non renseigné",color:"#94a3b8"}}
+
 const sources = [
   {id:"conso_communes",title:"Consommation d’espace communale",date:"Cumul 2011-2024",group:"Trajectoire ZAN",color:"#000091",kind:"choropleth",count:"183 communes",active:true,producer:"Cerema · Indicateurs fonciers"},
   {id:"couverture",title:"Occupation du sol (OCS GE)",date:"Millésime 2024-2026",group:"Occupation du sol",color:"#8a5a44",kind:"wmts",wmtsLayer:"OCSGE.COUVERTURE.2024-2026",count:"Couche IGN nationale",active:false,producer:"IGN · Géoplateforme"},
@@ -37,7 +82,7 @@ function fmtM2(v){return Number.isFinite(v)?`${Math.round(v).toLocaleString("fr-
 function fmtHa(v){return Number.isFinite(v)?`${(v/10000).toLocaleString("fr-FR",{maximumFractionDigits:1})} ha`:"—"}
 
 function wmtsLayer(source){
-  return L.tileLayer(`https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${source.wmtsLayer}&STYLE=normal&TILEMATRIXSET=PM_6_16&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/png`,{minZoom:6,maxZoom:16,opacity:source.id==="couverture"?.62:.72,attribution:"IGN · Géoplateforme"});
+  return L.tileLayer(`https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${source.wmtsLayer}&STYLE=normal&TILEMATRIXSET=PM_6_16&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/png`,{minZoom:6,maxZoom:19,maxNativeZoom:16,opacity:source.id==="couverture"?.62:.72,attribution:"IGN · Géoplateforme"});
 }
 
 async function fetchJson(url,attempts=3){
@@ -75,7 +120,7 @@ async function loadLayer(source){
   if(source.kind==="wmts"){layers[source.id]=wmtsLayer(source);return layers[source.id]}
   if(source.kind==="friches"){
     const data=await loadFriches();
-    const onEach=(f,l)=>{l.on("click",()=>openFriche(f));l.bindTooltip(f.properties.site_nom||f.properties.comm_nom||"Friche",{sticky:true})};
+    const onEach=(f,l)=>{l.on("click",e=>{L.DomEvent.stopPropagation(e);openFriche(f)});l.bindTooltip(f.properties.site_nom||f.properties.comm_nom||"Friche",{sticky:true})};
     // Points dérivés du centroïde de chaque polygone, visibles à toute échelle.
     const centroidData={type:"FeatureCollection",features:data.features.map(f=>({type:"Feature",properties:f.properties,geometry:{type:"Point",coordinates:centroid(f.geometry)}}))};
     const dots=L.geoJSON(centroidData,{pointToLayer:frichePoint,onEachFeature:onEach});
@@ -94,7 +139,7 @@ async function loadLayer(source){
       style:f=>({color:"#fff",weight:.8,fillColor:choroColor(f.properties.total,breaks),fillOpacity:.78}),
       onEachFeature:(f,l)=>{
         l.bindTooltip(`<b>${f.properties.nom}</b><br>${fmtHa(f.properties.total)} consommés depuis 2011`,{sticky:true});
-        l.on("click",()=>openCommune(f.properties.nom,f.properties.code));
+        l.on("click",e=>{L.DomEvent.stopPropagation(e);openCommune(f.properties.nom,f.properties.code)});
         l.on("mouseover",()=>l.setStyle({weight:2.5,color:"#070047"}));
         l.on("mouseout",()=>l.setStyle({weight:.8,color:"#fff"}));
       }
@@ -151,6 +196,28 @@ function openFriche(feature){
   document.getElementById("detailContent").innerHTML=`<span class="detail-tag">Potentiels fonciers · ${p.source_nom||"Cartofriches"}</span><h2>${htmlSafe(title)}</h2><p class="subtitle">Friche · commune de ${htmlSafe(p.comm_nom)}</p><section class="theme-explainer"><strong>Ce que montre cette donnée</strong><p>${guide.what}</p><small>${guide.read}</small></section><div class="property-grid">${cards.map(([k,v])=>`<div class="property"><small>${htmlSafe(k)}</small><strong>${htmlSafe(v)}</strong></div>`).join("")}</div><a class="source-link" target="_blank" rel="noopener" href="${p.source_url||"https://cartofriches.cerema.fr/cartofriches/"}">Consulter Cartofriches ↗</a>`;
   document.getElementById("detailPanel").classList.add("open");
 }
+
+async function identifyOcsGe(latlng){
+  const d=0.002;
+  const bbox=`${latlng.lat-d},${latlng.lng-d},${latlng.lat+d},${latlng.lng+d}`;
+  const url=`https://data.geopf.fr/wms-r/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetFeatureInfo&LAYERS=OCSGE.COUVERTURE.2024-2026&QUERY_LAYERS=OCSGE.COUVERTURE.2024-2026&STYLES=&CRS=EPSG:4326&BBOX=${bbox}&WIDTH=101&HEIGHT=101&I=50&J=50&FORMAT=image/png&INFO_FORMAT=application/json&FEATURE_COUNT=1`;
+  const d2=await fetchJson(url,2);
+  return d2.features?.[0]?.properties||null;
+}
+function openIdentify(latlng,props){
+  const cs=csInfo(props?.code_cs),us=usInfo(props?.code_us);
+  document.getElementById("detailContent").innerHTML=props?`<span class="detail-tag">Occupation du sol · IGN OCS GE ${props.millesime||""}</span><h2>${htmlSafe(cs.label)}</h2><p class="subtitle">Point cliqué sur la carte · ${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}</p><div class="property-grid"><div class="property" style="border-top-color:${cs.color}"><small>Couverture du sol</small><strong>${htmlSafe(cs.label)}</strong></div><div class="property" style="border-top-color:${us.color}"><small>Usage du sol</small><strong>${htmlSafe(us.label)}</strong></div><div class="property"><small>Surface de la parcelle</small><strong>${fmtM2(props.aire)}</strong></div><div class="property"><small>Artificialisation</small><strong>${props.artif==="artif"?"Sol artificialisé":"Sol non artificialisé"}</strong></div></div><a class="source-link" target="_blank" rel="noopener" href="https://data.geopf.fr/annexes/ressources/legendes/OCSGE.COUVERTURE-legend.png">Voir la légende complète IGN ↗</a>`
+    :`<span class="detail-tag">Occupation du sol · IGN OCS GE</span><h2>Aucune donnée à ce point</h2><p class="subtitle">Essayez de cliquer un peu plus près d’une zone colorée, ou zoomez davantage.</p>`;
+  document.getElementById("detailPanel").classList.add("open");
+}
+map.on("click",async e=>{
+  const active=["couverture","artif"].some(id=>document.getElementById(`layer-${id}`)?.checked);
+  if(!active)return;
+  document.getElementById("detailContent").innerHTML=`<span class="detail-tag">Occupation du sol · IGN OCS GE</span><h2>Identification…</h2><p class="subtitle">Interrogation de la couche au point cliqué.</p>`;
+  document.getElementById("detailPanel").classList.add("open");
+  try{const props=await identifyOcsGe(e.latlng);openIdentify(e.latlng,props)}
+  catch(err){document.getElementById("detailContent").innerHTML=`<span class="detail-tag">Occupation du sol · IGN OCS GE</span><h2>Identification indisponible</h2><p class="subtitle">Le service d’identification IGN n’a pas répondu. Réessayez dans un instant.</p>`}
+});
 
 async function fetchConsoEspace(echelle,code){
   const cacheKey=`${echelle}:${code}`;
@@ -247,9 +314,11 @@ function renderLegend(activeSources){
       const b=state.choroBreaks||[0,0,0,0];
       rows=[["#eef1f6","Aucune donnée"],[CHORO_RAMP[0],`< ${fmtHa(b[0])}`],[CHORO_RAMP[1],`${fmtHa(b[0])} – ${fmtHa(b[1])}`],[CHORO_RAMP[2],`${fmtHa(b[1])} – ${fmtHa(b[2])}`],[CHORO_RAMP[3],`${fmtHa(b[2])} – ${fmtHa(b[3])}`],[CHORO_RAMP[4],`> ${fmtHa(b[3])}`]];
     }
-    else if(source.kind==="wmts"){rows=[["#c65f52",source.id==="artif"?"Espace artificialisé identifié":"Voir la légende IGN"]];link=`<a href="https://data.geopf.fr/annexes/ressources/legendes/${source.wmtsLayer}-legend.png" target="_blank" rel="noopener" style="display:block;margin-top:8px;font-size:9px;color:#000091;font-weight:700">Voir la légende officielle ↗</a>`}
+    else if(source.id==="couverture")rows=Object.values(CS_NOMENCLATURE).map(v=>[v.color,v.label]);
+    else if(source.id==="artif")rows=[["rgb(255,55,122)","Sol artificialisé"],["#eef1f6","Sol non artificialisé (fond neutre)"]];
     else rows=[[source.color,source.title]];
-    return `<div class="legend-content"><strong>${source.title}</strong>${rows.map(([c,l])=>`<span><i style="background:${c}"></i>${l}</span>`).join("")}${link}</div>`;
+    const hint=source.kind==="wmts"?`<p style="margin:8px 0 0;font-size:9px;line-height:1.4;color:#647381">Cliquez n’importe où sur la carte pour identifier précisément le point (couverture, usage, surface).</p>`:"";
+    return `<div class="legend-content"><strong>${source.title}</strong>${rows.map(([c,l])=>`<span><i style="background:${c}"></i>${l}</span>`).join("")}${hint}${link}</div>`;
   }).join("");
 }
 
