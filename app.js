@@ -67,7 +67,7 @@ const themeGuide = {
 const state = {friches:null,communeCache:{},departementConso:null,charts:[],legendId:null};
 const map = L.map("map",{zoomControl:false,preferCanvas:true,minZoom:6,maxZoom:19});
 map.invalidateSize();
-map.fitBounds(BOUNDS_95);
+map.fitBounds(BOUNDS_95,{padding:[8,8]});
 map.createPane("maskPane");map.getPane("maskPane").style.zIndex=420;map.getPane("maskPane").style.pointerEvents="none";
 map.createPane("boundaryPane");map.getPane("boundaryPane").style.zIndex=430;map.getPane("boundaryPane").style.pointerEvents="none";
 L.control.zoom({position:"bottomright"}).addTo(map);
@@ -397,9 +397,9 @@ async function init(){
     L.geoJSON({type:"Feature",properties:{},geometry:{type:"Polygon",coordinates:[[[-180,-85],[180,-85],[180,85],[-180,85],[-180,-85]],...holes]}},{pane:"maskPane",interactive:false,className:"map-mask",style:{stroke:false,fillColor:"#e7ebf2",fillOpacity:.94,fillRule:"evenodd"}}).addTo(map);
     const territory=L.geoJSON(communes,{pane:"boundaryPane",interactive:false,style:{color:"#565b6c",weight:.7,opacity:.68,fillOpacity:0}}).addTo(map);
     map.invalidateSize();
-    map.fitBounds(territory.getBounds(),{padding:[38,38]});
-    document.getElementById("resetView").onclick=()=>map.fitBounds(territory.getBounds(),{padding:[28,28]});
-  }catch(e){document.getElementById("resetView").onclick=()=>map.fitBounds(BOUNDS_95)}
+    map.fitBounds(territory.getBounds(),{padding:[10,10]});
+    document.getElementById("resetView").onclick=()=>map.fitBounds(territory.getBounds(),{padding:[10,10]});
+  }catch(e){document.getElementById("resetView").onclick=()=>map.fitBounds(BOUNDS_95,{padding:[8,8]})}
   await Promise.allSettled(sources.filter(s=>s.active).map(s=>setLayer(s,true)));
   refreshLegend();
   document.getElementById("mapStatus").textContent="4 couches cartographiques prêtes · IGN Géoplateforme + Cerema";
