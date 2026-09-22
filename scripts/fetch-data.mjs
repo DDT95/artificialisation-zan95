@@ -10,11 +10,11 @@ const DEPT = "95";
 const IDF_DEPARTEMENTS = ["75", "77", "78", "91", "92", "93", "94", "95"];
 const DATA_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "data");
 
-async function fetchJson(url, attempts = 3) {
+async function fetchJson(url, attempts = 3, timeoutMs = 15000) {
   let lastError;
   for (let i = 0; i < attempts; i++) {
     try {
-      const r = await fetch(url);
+      const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
       if (!r.ok) throw new Error(`${url} → ${r.status}`);
       return await r.json();
     } catch (e) {
@@ -56,10 +56,15 @@ async function main() {
   console.log(`${communeCodes.length} communes.`);
 
   console.log("Consommation d’espace communale (Cerema)…");
+  let done = 0;
   const communeRows = await mapWithConcurrency(communeCodes, 10, async code => {
     try {
-      return [code, await fetchConsoEspace("communes", code)];
+      const rows = await fetchConsoEspace("communes", code);
+      done++;
+      if (done % 20 === 0) console.log(`  ${done}/${communeCodes.length} communes…`);
+      return [code, rows];
     } catch (e) {
+      done++;
       console.error(`Échec commune ${code} : ${e.message}`);
       return [code, []];
     }
