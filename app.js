@@ -1,5 +1,4 @@
 const BOUNDS_95 = [[48.89,1.60],[49.25,2.60]];
-const CEREMA_API = "https://apidf-preprod.cerema.fr";
 const usageLabels = {conso_hab:"Habitat",conso_act:"Activité",conso_mix:"Mixte",conso_infra:"Infrastructures",conso_inc:"Non déterminé"};
 const usageColors = {conso_hab:"#000091",conso_act:"#e1000f",conso_mix:"#7a5af8",conso_infra:"#009081",conso_inc:"#94a3b8"};
 const zoneLabels = {U:"Zone urbaine (U)",AU:"À urbaniser (AU)",A:"Agricole (A)",N:"Naturelle (N)"};
@@ -54,7 +53,7 @@ const sources = [
   {id:"conso_communes",title:"Consommation d’espace communale",date:"Cumul 2011-2024",group:"Trajectoire ZAN",color:"#000091",kind:"choropleth",count:"183 communes",active:true,producer:"Cerema · Indicateurs fonciers"},
   {id:"couverture",title:"Occupation du sol (OCS GE)",date:"Millésime 2024-2026",group:"Occupation du sol",color:"#8a5a44",kind:"wmts",wmtsLayer:"OCSGE.COUVERTURE.2024-2026",count:"Couche IGN nationale",active:false,producer:"IGN · Géoplateforme"},
   {id:"artif",title:"Espaces artificialisés (OCS GE)",date:"Millésime 2024-2026",group:"Occupation du sol",color:"#c65f52",kind:"wmts",wmtsLayer:"OCSGE.ARTIF.2024-2026",count:"Zones construites identifiées",active:false,producer:"IGN · Géoplateforme"},
-  {id:"friches",title:"Friches recensées",date:"Cartofriches · actualisation continue",group:"Potentiels fonciers",color:"#b8752a",kind:"friches",api:`${CEREMA_API}/cartofriches/geofriches/`,count:"— sites",active:true,producer:"Cerema · Cartofriches"}
+  {id:"friches",title:"Friches recensées",date:"Cartofriches · actualisation continue",group:"Potentiels fonciers",color:"#b8752a",kind:"friches",count:"— sites",active:true,producer:"Cerema · Cartofriches"}
 ];
 
 const themeGuide = {
@@ -64,7 +63,7 @@ const themeGuide = {
   friches:{short:"Sites recensés dans l’inventaire national Cartofriches",what:"Une friche est un site bâti ou non, autrefois utilisé, aujourd’hui vacant ou sous-occupé, avec un potentiel de renouvellement urbain.",read:"La fiche indique la surface, le zonage d’urbanisme applicable et l’état de connaissance de la pollution des sols lorsqu’il est renseigné."}
 };
 
-const state = {friches:null,communeCache:{},departementConso:null,charts:[],legendId:null};
+const state = {friches:null,consoCommunes:null,consoDepartements:null,charts:[],legendId:null};
 const map = L.map("map",{zoomControl:false,preferCanvas:true,minZoom:6,maxZoom:19});
 map.invalidateSize();
 map.fitBounds(BOUNDS_95,{padding:[8,8]});
@@ -95,8 +94,7 @@ async function fetchJson(url,attempts=3){
 }
 async function loadFriches(){
   if(state.friches)return state.friches;
-  const url=`${sources.find(s=>s.id==="friches").api}?coddep=95&page_size=300&fields=all`;
-  const d=await fetchJson(url);
+  const d=await fetchJson("data/friches-95.json");
   state.friches=d;
   document.getElementById("frichesCount").textContent=`${d.features.length} friches recensées`;
   const countLabel=sources.find(s=>s.id==="friches");countLabel.count=`${d.features.length} sites`;
@@ -219,12 +217,17 @@ map.on("click",async e=>{
   catch(err){document.getElementById("detailContent").innerHTML=`<span class="detail-tag">Occupation du sol · IGN OCS GE</span><h2>Identification indisponible</h2><p class="subtitle">Le service d’identification IGN n’a pas répondu. Réessayez dans un instant.</p>`}
 });
 
+async function loadConsoCommunes(){
+  if(!state.consoCommunes)state.consoCommunes=await fetchJson("data/conso-espace-communes.json");
+  return state.consoCommunes;
+}
+async function loadConsoDepartements(){
+  if(!state.consoDepartements)state.consoDepartements=await fetchJson("data/conso-espace-departements.json");
+  return state.consoDepartements;
+}
 async function fetchConsoEspace(echelle,code){
-  const cacheKey=`${echelle}:${code}`;
-  if(state.communeCache[cacheKey])return state.communeCache[cacheKey];
-  const d=await fetchJson(`${CEREMA_API}/indicateurs/conso_espace/${echelle}/${code}/?ordering=annee`);
-  state.communeCache[cacheKey]=d.results||[];
-  return state.communeCache[cacheKey];
+  const data=echelle==="communes"?await loadConsoCommunes():await loadConsoDepartements();
+  return data[code]||[];
 }
 
 function zanTarget(rows){
@@ -233,20 +236,11 @@ function zanTarget(rows){
   return avg===null?null:avg*0.5;
 }
 
-async function mapWithConcurrency(items,limit,worker){
-  const results=new Array(items.length);let i=0;
-  async function run(){while(i<items.length){const idx=i++;results[idx]=await worker(items[idx],idx)}}
-  await Promise.all(Array.from({length:Math.min(limit,items.length)},run));
-  return results;
-}
-
 async function rankCommunes(){
   if(state.communeRanking)return state.communeRanking;
+  const data=await loadConsoCommunes();
   const list=(state.communes?.features||[]).map(f=>({nom:f.properties.nom,code:f.properties.code}));
-  const rows=await mapWithConcurrency(list,20,async c=>{
-    try{const r=await fetchConsoEspace("communes",c.code);return {nom:c.nom,code:c.code,total:r.reduce((a,x)=>a+x.naf_arti,0)}}
-    catch(e){return {nom:c.nom,code:c.code,total:0}}
-  });
+  const rows=list.map(c=>({nom:c.nom,code:c.code,total:(data[c.code]||[]).reduce((a,x)=>a+x.naf_arti,0)}));
   state.communeRanking=rows.filter(r=>r.total>0).sort((a,b)=>b.total-a.total);
   return state.communeRanking;
 }
@@ -254,10 +248,12 @@ async function rankCommunes(){
 const IDF_DEPARTEMENTS={"75":"Paris","77":"Seine-et-Marne","78":"Yvelines","91":"Essonne","92":"Hauts-de-Seine","93":"Seine-Saint-Denis","94":"Val-de-Marne","95":"Val-d’Oise"};
 async function regionalComparison(){
   if(state.regional)return state.regional;
-  const codes=Object.keys(IDF_DEPARTEMENTS);
-  const rows=await mapWithConcurrency(codes,8,async code=>{
-    try{const r=await fetchConsoEspace("departements",code);const ref=r.filter(x=>x.annee>=2011&&x.annee<=2020);const avg=ref.length?ref.reduce((a,x)=>a+x.naf_arti,0)/ref.length:0;return {code,nom:IDF_DEPARTEMENTS[code],avg}}
-    catch(e){return {code,nom:IDF_DEPARTEMENTS[code],avg:0}}
+  const data=await loadConsoDepartements();
+  const rows=Object.keys(IDF_DEPARTEMENTS).map(code=>{
+    const r=data[code]||[];
+    const ref=r.filter(x=>x.annee>=2011&&x.annee<=2020);
+    const avg=ref.length?ref.reduce((a,x)=>a+x.naf_arti,0)/ref.length:0;
+    return {code,nom:IDF_DEPARTEMENTS[code],avg};
   });
   state.regional=rows.sort((a,b)=>b.avg-a.avg);
   return state.regional;
