@@ -2,9 +2,11 @@
 // Récupère côté serveur (pas de CORS ici) les données Cerema utilisées par la carte,
 // et les fige en JSON statique dans data/. Exécuté par .github/workflows/update-data.yml.
 //
-// L'API apidf-preprod.cerema.fr répond en 503 dès qu'on la sollicite avec trop de
-// requêtes simultanées : on reste donc volontairement à faible concurrence, avec
-// beaucoup de tentatives et un backoff généreux plutôt qu'un fort parallélisme.
+// L'API apidf-preprod.cerema.fr peut répondre en 503 de façon massive et prolongée
+// (instabilité côté Cerema, pas seulement une question de charge de notre part).
+// On échoue donc vite (peu de tentatives, backoff court) plutôt que d'épuiser le
+// budget du job en retries : les communes en échec gardent leur dernière valeur
+// connue, et le run planifié suivant comblera les trous une fois l'API stabilisée.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -14,7 +16,7 @@ const DEPT = "95";
 const IDF_DEPARTEMENTS = ["75", "77", "78", "91", "92", "93", "94", "95"];
 const DATA_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "data");
 
-async function fetchJson(url, attempts = 6, timeoutMs = 20000) {
+async function fetchJson(url, attempts = 3, timeoutMs = 8000) {
   let lastError;
   for (let i = 0; i < attempts; i++) {
     try {
@@ -23,7 +25,7 @@ async function fetchJson(url, attempts = 6, timeoutMs = 20000) {
       return await r.json();
     } catch (e) {
       lastError = e;
-      if (i < attempts - 1) await new Promise(res => setTimeout(res, 1500 * (i + 1)));
+      if (i < attempts - 1) await new Promise(res => setTimeout(res, 500 * (i + 1)));
     }
   }
   throw lastError;
@@ -36,7 +38,7 @@ async function mapWithConcurrency(items, limit, worker) {
     while (i < items.length) {
       const idx = i++;
       // Petit délai fixe entre deux requêtes d'un même worker pour lisser la charge.
-      if (idx > 0) await new Promise(res => setTimeout(res, 200));
+      if (idx > 0) await new Promise(res => setTimeout(res, 100));
       results[idx] = await worker(items[idx], idx);
     }
   }
@@ -71,9 +73,9 @@ async function main() {
   const communeCodes = await fetchCommuneCodes();
   console.log(`${communeCodes.length} communes.`);
 
-  console.log("Consommation d’espace communale (Cerema), faible concurrence pour éviter les 503…");
+  console.log("Consommation d’espace communale (Cerema)…");
   let done = 0, failed = 0;
-  const communeRows = await mapWithConcurrency(communeCodes, 3, async code => {
+  const communeRows = await mapWithConcurrency(communeCodes, 5, async code => {
     try {
       const rows = await fetchConsoEspace("communes", code);
       done++;
